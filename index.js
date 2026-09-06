@@ -1,7 +1,7 @@
-const http = require('http');
-const { TronWeb } = require('tronweb');
+import http from 'http';
+import { TronWeb } from 'tronweb';
 
-// 1. Port binding for Render Web Service
+// 1. Web server for Render port binding
 const PORT = process.env.PORT || 10000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -22,19 +22,51 @@ const ADDRESS_B = process.env.DESTINATION_ADDRESS;
 const PK1 = process.env.PRIVATE_KEY_1;
 const PK2 = process.env.PRIVATE_KEY_2;
 
-function runSweeper() {
-  async function executeSweep() {
-    try {
-      if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) {
-        return;
+// 3. Sweeper Function
+const sweep = async () => {
+  try {
+    if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) {
+      return;
+    }
+
+    const balance = await tronWeb.trx.getBalance(ADDRESS_A);
+
+    // Only sweep if balance > 3 TRX (3,000,000 SUN)
+    if (balance > 3000000) {
+      const amountToSend = balance - 3000000;
+      console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building multi-sig TX...`);
+
+      // Build unsigned transaction with permission ID 2 attached
+      let tx = await tronWeb.transactionBuilder.sendTrx(
+        ADDRESS_B,
+        amountToSend,
+        ADDRESS_A,
+        { permissionId: PERMISSION_ID }
+      );
+
+      // Sign with Key 1
+      tx = await tronWeb.trx.multiSign(tx, PK1);
+
+      // Sign with Key 2
+      tx = await tronWeb.trx.multiSign(tx, PK2);
+
+      // Broadcast
+      const broadcast = await tronWeb.trx.sendRawTransaction(tx);
+
+      if (broadcast.result) {
+        const txId = broadcast.txid || broadcast.transaction?.txID;
+        console.log(`[SUCCESS] Swept ${amountToSend / 1e6} TRX! TxID: https://tronscan.org/#/transaction/${txId}`);
+      } else {
+        console.error('[BROADCAST REJECTED]:', JSON.stringify(broadcast));
       }
+    }
+  } catch (err) {
+    console.error('[SWEEP ERROR]:', err.message || err);
+  }
+};
 
-      const balance = await tronWeb.trx.getBalance(ADDRESS_A);
-
-      // Sweep if balance > 3 TRX (3,000,000 SUN)
-      if (balance > 3000000) {
-        const amountToSend = balance - 3000000;
-        console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building 2-of-2 multi-sig TX...`);
+// 4. Polling loop
+setInterval(sweep, 3000);console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building 2-of-2 multi-sig TX...`);
 
         // Build transaction with permissionId 2 attached
         let tx = await tronWeb.transactionBuilder.sendTrx(
