@@ -22,19 +22,54 @@ const ADDRESS_B = process.env.DESTINATION_ADDRESS;
 const PK1 = process.env.PRIVATE_KEY_1;
 const PK2 = process.env.PRIVATE_KEY_2;
 
-// 3. Sweeper Logic wrapped entirely inside async function
 function runSweeper() {
   async function executeSweep() {
     try {
       if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) {
-        console.log("Missing configuration variables.");
         return;
       }
 
       const balance = await tronWeb.trx.getBalance(ADDRESS_A);
 
-      // Only sweep if balance > 3 TRX (3,000,000 SUN)
+      // Sweep if balance > 3 TRX (3,000,000 SUN)
       if (balance > 3000000) {
+        const amountToSend = balance - 3000000;
+        console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building 2-of-2 multi-sig TX...`);
+
+        // Build transaction with permissionId 2 attached
+        let tx = await tronWeb.transactionBuilder.sendTrx(
+          ADDRESS_B,
+          amountToSend,
+          ADDRESS_A,
+          { permissionId: PERMISSION_ID }
+        );
+
+        // Sign with Key 1
+        tx = await tronWeb.trx.multiSign(tx, PK1);
+
+        // Sign with Key 2
+        tx = await tronWeb.trx.multiSign(tx, PK2);
+
+        // Broadcast to TRON node
+        const broadcast = await tronWeb.trx.sendRawTransaction(tx);
+
+        if (broadcast.result) {
+          const txId = broadcast.txid || broadcast.transaction?.txID;
+          console.log(`[SUCCESS] Swept ${amountToSend / 1e6} TRX! TxID: https://tronscan.org/#/transaction/${txId}`);
+        } else {
+          console.error('[BROADCAST REJECTED]:', JSON.stringify(broadcast));
+        }
+      }
+    } catch (err) {
+      console.error('[SWEEP ERROR]:', err.message || err);
+    }
+  }
+
+  executeSweep();
+}
+
+// Poll every 3 seconds
+setInterval(runSweeper, 3000);      if (balance > 3000000) {
         const amountToSend = balance - 3000000;
         console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building multi-sig TX...`);
 
