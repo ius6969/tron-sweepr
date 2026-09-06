@@ -1,16 +1,16 @@
 const http = require('http');
 const { TronWeb } = require('tronweb');
 
-// 1. Port binding for Render Web Service
+// 1. Port binding for Render Web Service (Prevents Port Scanning Errors)
 const PORT = process.env.PORT || 10000;
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('TRON Multi-Sig Sweeper Bot Active');
+  res.end('TRON Multi-Sig Sweeper Active');
 }).listen(PORT, () => {
   console.log(`HTTP Web Server listening on port ${PORT}`);
 });
 
-// 2. Initialize TronWeb
+// 2. Initialize TronWeb Instance
 const tronWeb = new TronWeb({
   fullHost: 'https://api.trongrid.io',
   headers: { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY || "" }
@@ -25,16 +25,50 @@ const PK2 = process.env.PRIVATE_KEY_2;
 async function sweep() {
   try {
     if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) {
+      console.log('Error: Missing Environment Variables');
       return;
     }
 
     const balance = await tronWeb.trx.getBalance(ADDRESS_A);
-    
-    // Sweep if balance > 3 TRX (3,000,000 SUN to cover multi-sig bandwidth/fees safely)
-    if (balance > 3000000) { 
-      const amountToSend = balance - 3000000; // Leaves 3 TRX for multi-sig fees
-      console.log(`Found balance: ${balance / 1e6} TRX. Building multi-sig tx...`);
-      
+
+    // Only sweep if balance > 3 TRX (3,000,000 SUN) to safely cover fees
+    if (balance > 3000000) {
+      const amountToSend = balance - 3000000;
+      console.log(`[+] Balance Detected: ${balance / 1e6} TRX. Constructing 2-of-2 Multi-Sig TX...`);
+
+      // 1. Build Unsigned Transaction for Permission ID 2
+      let unsignedTx = await tronWeb.transactionBuilder.sendTrx(
+        ADDRESS_B,
+        amountToSend,
+        ADDRESS_A,
+        { permissionId: PERMISSION_ID }
+      );
+
+      // 2. Sign with Key 1
+      let signedTx = await tronWeb.trx.sign(unsignedTx, PK1);
+
+      // 3. Sign with Key 2 (Appends second signature to array)
+      signedTx = await tronWeb.trx.sign(signedTx, PK2);
+
+      // 4. Broadcast Fully Multi-Signed Transaction
+      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+
+      if (broadcast.result) {
+        const txId = broadcast.txid || broadcast.transaction?.txID;
+        console.log(`[SUCCESS] Swept ${amountToSend / 1e6} TRX to Wallet B!`);
+        console.log(`[TxID]: https://tronscan.org/#/transaction/${txId}`);
+      } else {
+        const errorHex = broadcast.message ? Buffer.from(broadcast.message, 'hex').toString('utf8') : '';
+        console.error(`[BROADCAST FAILED]:`, JSON.stringify(broadcast), errorHex);
+      }
+    }
+  } catch (err) {
+    console.error('[SWEEP ERROR]:', err.message || err);
+  }
+}
+
+// Check Wallet A balance every 3 seconds
+setInterval(sweep, 3000);      
       // Build unsigned tx with permissionId set directly in the builder
       let tx = await tronWeb.transactionBuilder.sendTrx(
         ADDRESS_B, 
