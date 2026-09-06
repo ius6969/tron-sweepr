@@ -30,11 +30,42 @@ async function sweep() {
 
     const balance = await tronWeb.trx.getBalance(ADDRESS_A);
     
-    // Sweep if balance > 2 TRX (2,000,000 SUN)
-    if (balance > 2000000) { 
-      const amountToSend = balance - 2000000; // Leave ~2 TRX for network fees
-      console.log(`Found balance: ${balance / 1e6} TRX. Initiating 2-of-2 multi-sig sweep...`);
+    // Sweep if balance > 3 TRX (3,000,000 SUN to cover multi-sig bandwidth/fees safely)
+    if (balance > 3000000) { 
+      const amountToSend = balance - 3000000; // Leaves 3 TRX for multi-sig fees
+      console.log(`Found balance: ${balance / 1e6} TRX. Building multi-sig tx...`);
       
+      // Build unsigned tx with permissionId set directly in the builder
+      let tx = await tronWeb.transactionBuilder.sendTrx(
+        ADDRESS_B, 
+        amountToSend, 
+        ADDRESS_A,
+        { permissionId: PERMISSION_ID }
+      );
+
+      // Sign with Key 1
+      tx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
+
+      // Sign with Key 2
+      tx = await tronWeb.trx.multiSign(tx, PK2, PERMISSION_ID);
+
+      // Broadcast transaction
+      const broadcast = await tronWeb.trx.sendRawTransaction(tx);
+      
+      if (broadcast.result) {
+        console.log('SWEEP SUCCESSFUL! TxID:', broadcast.txid || broadcast.transaction?.txID);
+      } else {
+        // Output exact reason why TRON node rejected the broadcast
+        console.error('Broadcast Failed:', JSON.stringify(broadcast));
+      }
+    }
+  } catch (err) {
+    console.error('Sweep error:', err.message || err);
+  }
+}
+
+// Poll every 3 seconds
+setInterval(sweep, 3000);      
       // Build plain unsigned transaction WITHOUT permissionId in builder
       let unsignedTx = await tronWeb.transactionBuilder.sendTrx(
         ADDRESS_B, 
