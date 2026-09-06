@@ -18,11 +18,10 @@ const PERMISSION_ID = parseInt(process.env.PERMISSION_ID || '2', 10);
 const ADDRESS_A = process.env.WALLET_A_ADDRESS;
 const ADDRESS_B = process.env.DESTINATION_ADDRESS;
 const PK1 = process.env.PRIVATE_KEY_1;
-const PK2 = process.env.PRIVATE_KEY_2;
 
 const sweep = async () => {
   try {
-    if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) return;
+    if (!ADDRESS_A || !ADDRESS_B || !PK1) return;
 
     const balance = await tronWeb.trx.getBalance(ADDRESS_A);
 
@@ -37,13 +36,10 @@ const sweep = async () => {
         ADDRESS_A
       );
 
-      // 2. Add signature from Key 1 under Permission ID 2
-      let signedTx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
+      // 2. Sign with Key 1 for Permission ID 2
+      const signedTx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
 
-      // 3. Add signature from Key 2 (omitting permissionId so it appends key 2 to the same signature array)
-      signedTx = await tronWeb.trx.multiSign(signedTx, PK2, null);
-
-      // 4. Broadcast
+      // 3. Broadcast
       const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
 
       if (broadcast.result) {
