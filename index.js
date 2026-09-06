@@ -30,11 +30,35 @@ const sweep = async () => {
       const amountToSend = balance - 3000000;
       console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building multi-sig TX...`);
 
+      // 1. Build unsigned transfer
       const tx = await tronWeb.transactionBuilder.sendTrx(
         ADDRESS_B,
         amountToSend,
         ADDRESS_A
       );
+
+      // 2. Inject Permission ID 2 & sign with Key 1
+      let signedTx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
+
+      // 3. Sign with Key 2 (DO NOT pass PERMISSION_ID again)
+      signedTx = await tronWeb.trx.multiSign(signedTx, PK2);
+
+      // 4. Broadcast
+      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+
+      if (broadcast.result) {
+        const txId = broadcast.txid || broadcast.transaction?.txID;
+        console.log(`[SUCCESS] Swept ${amountToSend / 1e6} TRX! TxID: https://tronscan.org/#/transaction/${txId}`);
+      } else {
+        console.error('[BROADCAST REJECTED]:', JSON.stringify(broadcast));
+      }
+    }
+  } catch (err) {
+    console.error('[SWEEP ERROR]:', err.message || err);
+  }
+};
+
+setInterval(sweep, 3000);      );
 
       let signedTx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
       signedTx = await tronWeb.trx.multiSign(signedTx, PK2, PERMISSION_ID);
