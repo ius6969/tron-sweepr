@@ -30,16 +30,26 @@ const sweep = async () => {
       const amountToSend = balance - 3000000;
       console.log(`[+] Balance Found: ${balance / 1e6} TRX. Building multi-sig TX...`);
 
-      const tx = await tronWeb.transactionBuilder.sendTrx(
+      // 1. Build base transaction
+      let tx = await tronWeb.transactionBuilder.sendTrx(
         ADDRESS_B,
         amountToSend,
         ADDRESS_A
       );
 
-      let signedTx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
-      signedTx = await tronWeb.trx.multiSign(signedTx, PK2);
+      // 2. Attach Permission ID 2 and sign with Key 1
+      tx = await tronWeb.trx.multiSign(tx, PK1, PERMISSION_ID);
 
-      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+      // 3. Sign transaction with Key 2 using distinct key instance
+      const tronWeb2 = new TronWeb({
+        fullHost: 'https://api.trongrid.io',
+        privateKey: PK2,
+        headers: { "TRON-PRO-API-KEY": process.env.TRONGRID_API_KEY || "" }
+      });
+      tx = await tronWeb2.trx.sign(tx);
+
+      // 4. Broadcast
+      const broadcast = await tronWeb.trx.sendRawTransaction(tx);
 
       if (broadcast.result) {
         const txId = broadcast.txid || broadcast.transaction?.txID;
