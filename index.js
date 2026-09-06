@@ -22,9 +22,7 @@ const PK2 = process.env.PRIVATE_KEY_2;
 
 const sweep = async () => {
   try {
-    if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) {
-      return;
-    }
+    if (!ADDRESS_A || !ADDRESS_B || !PK1 || !PK2) return;
 
     const balance = await tronWeb.trx.getBalance(ADDRESS_A);
 
@@ -35,6 +33,28 @@ const sweep = async () => {
       let tx = await tronWeb.transactionBuilder.sendTrx(
         ADDRESS_B,
         amountToSend,
+        ADDRESS_A,
+        { permissionId: PERMISSION_ID }
+      );
+
+      tx = await tronWeb.trx.multiSign(tx, PK1);
+      tx = await tronWeb.trx.multiSign(tx, PK2);
+
+      const broadcast = await tronWeb.trx.sendRawTransaction(tx);
+
+      if (broadcast.result) {
+        const txId = broadcast.txid || broadcast.transaction?.txID;
+        console.log(`[SUCCESS] Swept ${amountToSend / 1e6} TRX! TxID: https://tronscan.org/#/transaction/${txId}`);
+      } else {
+        console.error('[BROADCAST REJECTED]:', JSON.stringify(broadcast));
+      }
+    }
+  } catch (err) {
+    console.error('[SWEEP ERROR]:', err.message || err);
+  }
+};
+
+setInterval(sweep, 3000);        amountToSend,
         ADDRESS_A,
         { permissionId: PERMISSION_ID }
       );
