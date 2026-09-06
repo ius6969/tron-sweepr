@@ -1,0 +1,11 @@
+{
+  "name": "tron-sweeper",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "tronweb": "^6.0.0"
+  }
+}
