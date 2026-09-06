@@ -35,21 +35,20 @@ async function sweep() {
       const amountToSend = balance - 2000000; // Leave ~2 TRX for network fees
       console.log(`Found balance: ${balance / 1e6} TRX. Initiating 2-of-2 multi-sig sweep...`);
       
-      // Build unsigned transaction for Permission ID 2
+      // Build plain unsigned transaction WITHOUT permissionId in builder
       let unsignedTx = await tronWeb.transactionBuilder.sendTrx(
         ADDRESS_B, 
         amountToSend, 
-        ADDRESS_A, 
-        { permissionId: PERMISSION_ID }
+        ADDRESS_A
       );
 
-      // Signer 1 Multi-Sig Signature
+      // Signer 1 applies signature with Permission ID
       let signedTx = await tronWeb.trx.multiSign(unsignedTx, PK1, PERMISSION_ID);
 
-      // Signer 2 Multi-Sig Signature
+      // Signer 2 applies signature to the partially-signed transaction
       signedTx = await tronWeb.trx.multiSign(signedTx, PK2, PERMISSION_ID);
 
-      // Broadcast transaction
+      // Broadcast the fully multi-signed transaction
       const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
       
       if (broadcast.result || broadcast.txid) {
@@ -64,20 +63,4 @@ async function sweep() {
 }
 
 // Poll every 3 seconds
-setInterval(sweep, 3000);      let signedTx = await tronWeb.trx.sign(unsignedTx, PK1);
-
-      // Apply Signer Key 2 signature
-      signedTx = await tronWeb.trx.sign(signedTx, PK2);
-
-      // Broadcast multi-sig transaction on TRON network
-      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
-      console.log('Sweep executed successfully! TxID:', broadcast.txid);
-    }
-  } catch (err) {
-    console.error('Sweep error:', err.message || err);
-  }
-}
-
-// Run sweep check every 3 seconds
 setInterval(sweep, 3000);
-console.log('Sweeper bot started successfully monitoring Address A...');
